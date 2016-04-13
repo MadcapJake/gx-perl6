@@ -1,0 +1,13 @@
+{
+  "name"          : "CompUnit::Repository::GX",
+  "version"       : "0.1.0",
+  "description"   : "P2P Module Management",
+  "depends"       : [],
+  "build-depends" : [],
+  "test-depends"  : [],
+  "provides"      : {
+    "CompUnit::Repository::GX" : "lib/CompUnit/Repository/GX.pm6",
+    "gx-perl6"                 : "bin/gx-perl6"
+  },
+  "author"        : "Jacob Russo <madcap.russo@gmail.com>"
+}
