@@ -1,0 +1,24 @@
+{
+  "gxVersion" : "0.4.0",
+  "name" : "eg",
+  "gxDependencies" : [
+    {
+      "name" : "go-libp2p",
+      "author" : "whyrusleeping",
+      "hash" : "QmccGfZs3rzku8Bv6sTPH3bMUKD1EVod8srgRjt5csdmva",
+      "version" : "2.0.1"
+    },
+    {
+      "name" : "gateway",
+      "author" : "whyrusleeping",
+      "distribution" : "Test::App",
+      "hash" : "Qma5KQppqMBmpdNeVUDuNtEkec1BRNWcS3dodUdiP9267q",
+      "version" : "0.0.0"
+    }
+  ],
+  "language" : "perl6",
+  "author" : "jrusso",
+  "license" : "",
+  "version" : "0.0.0",
+  "bugs" : { }
+}

@@ -1,0 +1,136 @@
+#!/usr/bin/env perl6
+
+use nqp;
+
+sub META6(Str $dir?, :gen($generate), :$io) {
+  my $meta6-json = join($*SPEC.dir-sep, «{$dir // $*CWD} META6.json»).IO;
+  return ($io ?? $meta6-json !! from-json($meta6-json.slurp)) if $meta6-json.e;
+
+  my $meta-info  = join($*SPEC.dir-sep, «{$dir // $*CWD} META.info»).IO;
+  return ($io ?? $meta-info  !! from-json($meta-info.slurp))  if $meta-info.e;
+
+  warn "Unable to find META6 file in {$dir // $*CWD}";
+
+  return Nil unless $generate;
+
+  my %new-meta =
+    name => ~prompt('what is the name of the module? '),
+    version => '0.1.0',
+    description => ~prompt('what does your module do? '),
+    provides => {},
+    depends => [];
+
+  spurt $meta6-json, to-json(%new-meta);
+
+  return %new-meta;
+}
+
+#| called after a new package is imported and its info written to package.json.
+multi sub MAIN('hook', 'post-import', Str $hash) {
+  # Takes name from gxDeps and puts it in META6 depends array
+
+  my $path-to-package = join($*SPEC.dir-sep, «$*CWD package.json»).IO;
+  my $path-to-meta    = META6():io;
+
+  my %package = from-json($path-to-package.slurp);
+  my %meta    = from-json($path-to-meta.slurp);
+
+  my %dist := (%package<gxDependencies>.grep: *<hash> eq $hash).first;
+
+  my %dep-meta = META6(join($*SPEC.dir-sep, «$*CWD gx ipfs $hash %dist<name>»));
+
+  warn 'mismatched versions' if %dist<version> !~~ %dep-meta<version>;
+
+  %meta<depends>.push:
+    "{%dep-meta<name>}:auth<gx:{%dist<author>}>:ver<{%dep-meta<version>}>";
+
+  spurt $path-to-meta, to-json(%meta);
+
+  %dist<spec> = %dep-meta<name>;
+
+  spurt $path-to-package, to-json(%package);
+}
+
+#| called after a new package is initialized.
+multi sub MAIN('hook', 'post-init', Str:D $dir) {
+  # Replaces package.json defaults with META6 data, if META6
+  # does not exist then it stubs one out for you.
+
+  my $path-to-package = join $*SPEC.dir-sep, «$dir package.json»;
+  my %package = from-json($path-to-package.IO.slurp);
+  my %meta = META6($dir):gen;
+
+  %package<spec>    = %meta<name>;
+  %package<version> = %meta<version>;
+
+  spurt $path-to-package, to-json(%package);
+}
+
+#| called during `gx publish` before the package is bundled up and added to ipfs.
+multi sub MAIN('hook', 'pre-publish') {
+  # Make sure that META6 version number matches gx version
+
+  my $path-to-package = join($*SPEC.dir-sep, «$*CWD package.json»).IO;
+  my $path-to-meta    = META6():io;
+
+  my %package = from-json($path-to-package.slurp);
+  my %meta    = from-json($path-to-meta.slurp);
+
+  unless %package<version> ~~ %meta<version> {
+    my ($wrote-package, $wrote-meta);
+    say "Package version {%package<version>} does not match META6 version {%meta<version>}.";
+    given prompt("Would you like to correct this (Default: P)? \{[N]o,[P]ackage,[M]ETA6\} ") {
+      when /:i no?/ { say "Unable to continue"; exit 1 }
+      when /:i p(ackage)?/ {
+        %meta<version> = %package<version>;
+        spurt $path-to-meta, to-json(%meta);
+      }
+      when /:i m(eta6)?/ {
+        %package<version> = %meta<version>;
+        spurt $path-to-package, to-json(%package);
+      }
+      default { warn "Unrecognized response: $_"; exit 1 }
+    }
+  }
+}
+
+#| called during gx publish after the package has been added to ipfs.
+multi sub MAIN('hook', 'post-publish', Str $hash) {
+  # ???
+}
+
+#| called during gx update after a dependency has been updated.
+multi sub MAIN('hook', 'post-update', Str $old-hash, Str $new-hash) {
+  ???
+}
+
+#| called after a new package is downloaded, during install and import.
+multi sub MAIN('hook', 'post-install', IO(Str) $path) {
+  # places a short-name entry in short/ for each module
+
+  # Should only be one folder inside this path
+  my $dir = dir($path)[0];
+
+  my $path-to-dep-package = join($*SPEC.dir-sep, «$dir package.json»).IO;
+  my %dep-pkg = from-json($path-to-dep-package.slurp);
+
+  my %dep-meta = META6($dir.Str);
+
+  # create a directory for short-names
+  my $path-to-shorts = join($*SPEC.dir-sep, «$*CWD gx short»).IO;
+  $path-to-shorts.mkdir unless $path-to-shorts.d;
+
+  for %dep-meta<provides>.kv -> $name, $sub-path {
+    my $short-file = join $*SPEC.dir-sep, [$path-to-shorts, nqp::sha1($name)];
+    my $short-entry = "{%dep-pkg<version>}\0" ~
+      "{%dep-pkg<author>}\0" ~
+      "{join($*SPEC.dir-sep, «$dir $sub-path»)}";
+    spurt $short-file.IO, $short-entry, :append;
+  }
+
+}
+
+#| called during package installs and imports.
+multi sub MAIN('hook', 'install-path') {
+  ???
+}
