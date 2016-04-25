@@ -122,9 +122,7 @@ multi sub MAIN('hook', 'post-install', IO(Str) $path) {
 
   for %dep-meta<provides>.kv -> $name, $sub-path {
     my $short-file = join $*SPEC.dir-sep, [$path-to-shorts, nqp::sha1($name)];
-    my $short-entry = "{%dep-pkg<version>}\0" ~
-      "{%dep-pkg<author>}\0" ~
-      "{join($*SPEC.dir-sep, «$dir $sub-path»)}";
+    my $short-entry = "{%dep-pkg<version>}\0{%dep-pkg<author>}\0$dir\0$sub-path";
     spurt $short-file.IO, $short-entry, :append;
   }
 
