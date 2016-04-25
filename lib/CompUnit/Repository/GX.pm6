@@ -2,29 +2,31 @@ unit class CompUnit::Repository::GX does CompUnit::Repository::Locally does Comp
 
 use nqp;
 
-CompUnit::RepositoryRegistry::short-id2class('gx') = 'CompUnit::Repository::GX';
+# BEGIN CompUnit::RepositoryRegistry::short-id2class('gx') = 'CompUnit::Repository::GX';
 
-$*REPO.repo-chain[*-1].next-repo =
-  CompUnit::Repository::GX.new: :prefix($*CWD.Str);
+# $*REPO.repo-chain[*-1].next-repo =
+#   CompUnit::Repository::GX.new: :prefix($*CWD.Str);
+
+my $first-repo = $*REPO.repo-chain()[0];
+PROCESS::<$REPO> := CompUnit::Repository::GX.new: :prefix($*CWD.Str) :next-repo($first-repo);
 
 note 'repo added';
 
+has $!cver = nqp::hllize(nqp::atkey(nqp::gethllsym('perl6', '$COMPILER_CONFIG'), 'version'));
 has %!loaded;
 has $!precomp;
-
-my %seen;
+has $!id;
 
 method !matching-package(CompUnit::DependencySpecification $spec) {
   if $spec.from eq 'Perl6' {
     my $lookup = $.prefix.child('gx').child('short').child(nqp::sha1($spec.short-name));
     if $lookup.e {
       my @dists = $lookup.lines».split("\0").grep({
-        Version.new(~$_[0] || '0') ~~ $spec.version-matcher
-          and ~$_[1] ~~ $spec.auth-matcher
+        Version.new(~$_[0] || '0') ~~ $spec.version-matcher and ~$_[1] ~~ $spec.auth-matcher
       }).map(-> ($ver, $auth, $repo, $path) {
         my %meta = from-json($.prefix.child($repo).child('META6.json').slurp);
         %meta<auth> = $auth;
-        return join($*SPEC.dir-sep, ($repo, $path)) => %meta
+        join($*SPEC.dir-sep, ($repo, $path)) => %meta
       }).grep({
         $_.value<provides>{$spec.short-name}:exists
       });
@@ -37,7 +39,7 @@ method !matching-package(CompUnit::DependencySpecification $spec) {
 }
 
 method !repo-prefix() {
-    my $repo-prefix = CompUnit::RepositoryRegistry.name-for-repository(self) // '';
+    my $repo-prefix = 'gx+ipfs'; # CompUnit::RepositoryRegistry.name-for-repository(self) // '';
     $repo-prefix ~= '#' if $repo-prefix;
     $repo-prefix
 }
@@ -69,24 +71,21 @@ method need(
   CompUnit::DependencySpecification $spec,
   CompUnit::PrecompilationRepository $precomp = self.precomp-repo()
 ) returns CompUnit:D {
-  note 'needing...';
+  note "needing $spec.short-name()";
   my ($path, %meta) = self!matching-package($spec);
   if $path {
     my $name = $spec.short-name;
     return %!loaded{$name} if %!loaded{$name}:exists;
 
-    my $loader = IO::Path.new: $path;
-    my $*RESOURCES = Distribution::Resources.new(:repo(self), :$path);
+    my $*RESOURCES = Distribution::Resources.new(:repo(self), :dist-id($path));
+
+    my $loader = IO::Path.new($path);
     my $id = $loader.basename;
-    my $repo-prefix = self!repo-prefix;
-    my $handle = $precomp.try-load(
-      $id,
-      $path,
-      :source-name("$repo-prefix{$loader.relative($.prefix)} ({$spec.short-name})")
-    );
+    my $source-name = "{$loader.relative($.prefix)} ({$spec.short-name})";
+    say "id:\t$id\nloader:\t$loader\nsource-name:\t$source-name";
+    my $handle = $precomp.try-load($id, $loader, :$source-name);
     my $precompiled = defined $handle;
     $handle //= CompUnit::Loader.load-source-file($loader);
-
     my $compunit = CompUnit.new(
       :$handle,
       :short-name($spec.short-name),
@@ -110,9 +109,12 @@ method short-id { 'gx' }
 # process.
 method loaded() returns Iterable { %!loaded.values }
 
-method path-spec { 'gx#' ~ $!prefix.abspath }
+# multi method Str(CompUnit::Repository::GX:D:) { 'CompUnit::Repository::GX' }
+# multi method gist(CompUnit::Repository::GX:D:) { self.path-spec }
 
-method precomp-repository() returns CompUnit::PrecompilationRepository {
+method path-spec { 'gx#'}
+
+method precomp-repo() returns CompUnit::PrecompilationRepository {
   note 'getting or making precomp';
   $!precomp := CompUnit::PrecompilationRepository::Default.new(
       store => CompUnit::PrecompilationStore::File.new(
