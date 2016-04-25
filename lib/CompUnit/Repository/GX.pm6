@@ -21,10 +21,10 @@ method !matching-package(CompUnit::DependencySpecification $spec) {
       my @dists = $lookup.lines».split("\0").grep({
         Version.new(~$_[0] || '0') ~~ $spec.version-matcher
           and ~$_[1] ~~ $spec.auth-matcher
-      }).map(-> ($ver, $auth, $path) {
-        my %meta = from-json($.prefix.child($path).child('META6.json').slurp);
+      }).map(-> ($ver, $auth, $repo, $path) {
+        my %meta = from-json($.prefix.child($repo).child('META6.json').slurp);
         %meta<auth> = $auth;
-        return $path => %meta
+        return join($*SPEC.dir-sep, ($repo, $path)) => %meta
       }).grep({
         $_.value<provides>{$spec.short-name}:exists
       });
