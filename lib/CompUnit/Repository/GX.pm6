@@ -28,8 +28,8 @@ method !matching-package(CompUnit::DependencySpecification $spec) {
       }).grep({
         $_.value<provides>{$spec.short-name}:exists
       });
-      for @dists.sort(*.key).reverse.map(*.kv) -> ($path, %meta) {
-        return ($path, %meta);
+      for @dists.sort(*.key).reverse.map(*.kv) -> ($full-path, %meta) {
+        return ($full-path, %meta);
       }
     }
   }
