@@ -2,12 +2,12 @@ unit class CompUnit::Repository::GX does CompUnit::Repository::Locally does Comp
 
 use nqp;
 
-my $prev-repo = $*REPO.repo-chain[*-1];
-$prev-repo.next-repo = CompUnit::Repository::GX.new:
-  prefix => join($*SPEC.dir-sep, $*CWD),
-  next-repo => $prev-repo;
+CompUnit::RepositoryRegistry::short-id2class('gx') = 'CompUnit::Repository::GX';
 
-'repo added'.say;
+$*REPO.repo-chain[*-1].next-repo =
+  CompUnit::Repository::GX.new: :prefix($*CWD.Str);
+
+note 'repo added';
 
 has %!loaded;
 has $!precomp;
@@ -43,7 +43,7 @@ method !repo-prefix() {
 }
 
 method resolve(CompUnit::DependencySpecification $spec) returns CompUnit {
-  say 'resolving...';
+  note 'resolving...';
   my ($path, %meta) = self!matching-package($spec);
   with $path {
     my $file = $.prefix.child($path);
@@ -69,7 +69,7 @@ method need(
   CompUnit::DependencySpecification $spec,
   CompUnit::PrecompilationRepository $precomp = self.precomp-repo()
 ) returns CompUnit:D {
-  say 'needing...';
+  note 'needing...';
   my ($path, %meta) = self!matching-package($spec);
   if $path {
     my $name = $spec.short-name;
@@ -113,7 +113,7 @@ method loaded() returns Iterable { %!loaded.values }
 method path-spec { 'gx#' ~ $!prefix.abspath }
 
 method precomp-repository() returns CompUnit::PrecompilationRepository {
-  'getting or making precomp'.say;
+  note 'getting or making precomp';
   $!precomp := CompUnit::PrecompilationRepository::Default.new(
       store => CompUnit::PrecompilationStore::File.new(
         :prefix($.prefix.child('gx').child('precomp')),
