@@ -2,14 +2,14 @@ unit class CompUnit::Repository::GX does CompUnit::Repository::Locally does Comp
 
 use nqp;
 
-# BEGIN CompUnit::RepositoryRegistry::short-id2class('gx') = 'CompUnit::Repository::GX';
+BEGIN CompUnit::RepositoryRegistry::short-id2class('gx') = 'CompUnit::Repository::GX';
 
 # $*REPO.repo-chain[*-1].next-repo =
 #   CompUnit::Repository::GX.new: :prefix($*CWD.Str);
 
 my $first-repo = $*REPO.repo-chain()[0];
 PROCESS::<$REPO> := CompUnit::Repository::GX.new: :prefix($*CWD.Str) :next-repo($first-repo);
-
+$*REPO.repo-chain().say;
 note 'repo added';
 
 has $!cver = nqp::hllize(nqp::atkey(nqp::gethllsym('perl6', '$COMPILER_CONFIG'), 'version'));
@@ -39,7 +39,7 @@ method !matching-package(CompUnit::DependencySpecification $spec) {
 }
 
 method !repo-prefix() {
-    my $repo-prefix = 'gx+ipfs'; # CompUnit::RepositoryRegistry.name-for-repository(self) // '';
+    my $repo-prefix = CompUnit::RepositoryRegistry.name-for-repository(self) // '';
     $repo-prefix ~= '#' if $repo-prefix;
     $repo-prefix
 }
@@ -109,10 +109,14 @@ method short-id { 'gx' }
 # process.
 method loaded() returns Iterable { %!loaded.values }
 
-# multi method Str(CompUnit::Repository::GX:D:) { 'CompUnit::Repository::GX' }
-# multi method gist(CompUnit::Repository::GX:D:) { self.path-spec }
+multi method Str(CompUnit::Repository::GX:D:) {
+  join $*SPEC.dir-sep, «$!prefix.abspath() gx ipfs»
+}
+multi method gist(CompUnit::Repository::GX:D:) { self.path-spec }
 
-method path-spec { 'gx#'}
+method path-spec {
+  self.short-id ~ '#' ~ join $*SPEC.dir-sep, «$!prefix.abspath() gx ipfs»
+}
 
 method precomp-repo() returns CompUnit::PrecompilationRepository {
   note 'getting or making precomp';
